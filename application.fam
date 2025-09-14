@@ -4,5 +4,6 @@ App(
   apptype=FlipperAppType.EXTERNAL,
   entry_point="ultralight_lock_otp_app",
   requires=["nfc"],
+  sources=["ultralight_lock_otp.c"],  # <- adăugat explicit
   stack_size=2048,
 )
