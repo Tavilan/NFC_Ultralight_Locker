@@ -1,0 +1,18 @@
+name: Build FAP
+on:
+  push:
+  workflow_dispatch:
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: flipperdevices/flipperzero-ufbt-action@v0.1.4
+        id: ufbt
+        with:
+          sdk-channel: release    # pune 'dev' dacă ai firmware dev pe Flipper
+      - run: ufbt update && ufbt build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ github.event.repository.name }}-${{ steps.ufbt.outputs.suffix }}
+          path: ${{ steps.ufbt.outputs.fap-artifacts }}
