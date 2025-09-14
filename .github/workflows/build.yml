@@ -1,31 +1,71 @@
-name: Build FAP
+name: Build all FAPs (auto-discover)
 on:
   push:
   workflow_dispatch:
+
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      # Instalează SDK uFBT (alege release/dev în funcție de firmware-ul tău)
-      - uses: flipperdevices/flipperzero-ufbt-action@v0.1.4
+      - name: Setup uFBT
+        uses: flipperdevices/flipperzero-ufbt-action@v0.1.4
         id: ufbt
         with:
-          sdk-channel: release   # sau 'dev' dacă Flipper-ul tău e pe dev
+          sdk-channel: release   # pune 'dev' dacă Flipperul tău e pe firmware dev
 
-      # (Opțional) Diagnostic: vezi ce vede ufbt
-      - run: |
-          echo "== repo files =="
+      - name: Diagnose repo contents
+        run: |
+          echo "== PWD ==" && pwd
+          echo "== Tree =="
           ls -la
-          echo "== ufbt list =="
-          ufbt list || true
+          echo "== Find application.fam =="
+          # listă absolută a tuturor application.fam
+          find "$(pwd)" -type f -name "application.fam" -print | sed 's|^|FOUND: |'
 
-      # Build din rădăcină (acolo e application.fam)
-      - run: ufbt update && ufbt build
+      - name: Build all apps found
+        run: |
+          set -e
+          ROOT="$(pwd)"
+          MAPFILE=apps.txt
+          # adună toate directoarele care conțin application.fam
+          find "$ROOT" -type f -name "application.fam" -print > "$MAPFILE"
 
-      # Artefactul .fap
-      - uses: actions/upload-artifact@v4
+          if [ ! -s "$MAPFILE" ]; then
+            echo "ERROR: niciun application.fam găsit. Verifică numele fișierului și locația."
+            exit 2
+          fi
+
+          mkdir -p build-collect
+          i=0
+          while IFS= read -r fam; do
+            dir="$(dirname "$fam")"
+            echo "=== [$((++i))] Building in: $dir"
+            ls -la "$dir" || true
+
+            # list app(s) văzute de ufbt în acest dir
+            (cd "$dir" && ufbt list || true)
+
+            # build
+            (cd "$dir" && ufbt update && ufbt build)
+
+            # strânge .fap-urile raportate de action (path relativ)
+            OUT="${{ steps.ufbt.outputs.fap-artifacts }}"
+            if [ -n "$OUT" ] && [ -e "$dir/$OUT" ]; then
+              cp -vr "$dir/$OUT" build-collect/ || true
+            else
+              # fallback: caută .fap în subdir-ul de build
+              find "$dir" -type f -name "*.fap" -print -exec cp -v {} build-collect/ \;
+            fi
+          done < "$MAPFILE"
+
+          echo "== Collected FAPs =="
+          ls -la build-collect || true
+
+      - name: Upload FAPs
+        if: always()
+        uses: actions/upload-artifact@v4
         with:
-          name: ${{ github.event.repository.name }}-${{ steps.ufbt.outputs.suffix }}
-          path: ${{ steps.ufbt.outputs.fap-artifacts }}
+          name: faps-${{ steps.ufbt.outputs.suffix }}
+          path: build-collect
