@@ -1,4 +1,4 @@
-name: Build FAP (auto-discover & self-heal)
+name: Build FAP
 on:
   push:
   workflow_dispatch:
@@ -7,75 +7,35 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Debug listing
+        run: |
+          echo "PWD=$(pwd)"
+          ls -la
+          echo "---- application.fam ----"
+          sed -n '1,200p' application.fam || true
+          echo "---- C sources ----"
+          ls -la *.c || true
 
       - name: Setup uFBT
         uses: flipperdevices/flipperzero-ufbt-action@v0.1.4
         id: ufbt
         with:
-          # pune 'dev' dacă ai firmware dev pe Flipper; altfel 'release'
-          sdk-channel: release
+          sdk-channel: release  # pune 'dev' dacă Flipper-ul tău e pe firmware dev
 
-      - name: Diagnose repo
-        run: |
-          echo "== PWD ==" && pwd
-          echo "== Top level =="
-          ls -la
-          echo "== application.fam files =="
-          find "$(pwd)" -type f -name "application.fam" -print | sed 's|^|FOUND: |' || true
-
-      - name: Build all apps (if any)
-        id: build_existing
-        continue-on-error: true
+      - name: Build
         run: |
           set -e
-          ROOT="$(pwd)"
-          MAPFILE=apps.txt
-          find "$ROOT" -type f -name "application.fam" -print > "$MAPFILE"
-          if [ ! -s "$MAPFILE" ]; then
-            echo "no_apps=true" >> $GITHUB_OUTPUT
-            exit 0
-          fi
-          mkdir -p build-collect
-          idx=0
-          while IFS= read -r fam; do
-            dir="$(dirname "$fam")"
-            echo "=== [$((++idx))] Building in: $dir"
-            ls -la "$dir" || true
-            (cd "$dir" && ufbt update && ufbt list || true)
-            (cd "$dir" && ufbt build)
-            find "$dir" -type f -name "*.fap" -print -exec cp -v {} build-collect/ \;
-          done < "$MAPFILE"
-          echo "no_apps=false" >> $GITHUB_OUTPUT
-          ls -la build-collect || true
+          ufbt update
+          ufbt list || true      # aici ar trebui să apară "UltralightLockOTP"
+          ufbt build
 
-      - name: SELF-HEAL: create minimal app if none found
-        if: steps.build_existing.outputs.no_apps == 'true'
-        run: |
-          echo "No application.fam found. Creating a minimal example in ./demo_app ..."
-          mkdir -p demo_app
-          cat > demo_app/application.fam <<'EOF'
-          App(
-            appid="DemoUltralight",
-            name="Demo UL",
-            apptype=FlipperAppType.EXTERNAL,
-            entry_point="demo_ul_app",
-            requires=["nfc"],
-            stack_size=2048,
-          )
-          EOF
-          cat > demo_app/demo_ul.c <<'EOF'
-          #include <furi.h>
-          int32_t demo_ul_app(void* p){ UNUSED(p); FURI_LOG_I("DEMO","Hello from demo app"); return 0; }
-          EOF
-          (cd demo_app && ufbt update && ufbt list || true)
-          (cd demo_app && ufbt build)
-          mkdir -p build-collect
-          find demo_app -type f -name "*.fap" -print -exec cp -v {} build-collect/ \;
-          ls -la build-collect
-
-      - name: Upload FAPs
+      - name: Upload .fap
         uses: actions/upload-artifact@v4
         with:
-          name: faps-${{ steps.ufbt.outputs.suffix }}
-          path: build-collect
+          name: fap-${{ steps.ufbt.outputs.suffix }}
+          path: "**/*.fap"
