@@ -1,0 +1,3 @@
+ultralight_lock_otp/
+  application.fam   # apptype=FlipperAppType.EXTERNAL
+  ultralight_lock_otp.c
