@@ -12,16 +12,12 @@ jobs:
       - name: Setup uFBT
         uses: flipperdevices/flipperzero-ufbt-action@v0.1.4
         id: ufbt
-        with:
-          sdk-channel: release   # pune 'dev' dacă Flipperul tău e pe firmware dev
 
       - name: Diagnose repo contents
         run: |
           echo "== PWD ==" && pwd
-          echo "== Tree =="
-          ls -la
-          echo "== Find application.fam =="
-          # listă absolută a tuturor application.fam
+          echo "== Tree (top) ==" && ls -la
+          echo "== Find application.fam ==" 
           find "$(pwd)" -type f -name "application.fam" -print | sed 's|^|FOUND: |'
 
       - name: Build all apps found
@@ -29,35 +25,32 @@ jobs:
           set -e
           ROOT="$(pwd)"
           MAPFILE=apps.txt
-          # adună toate directoarele care conțin application.fam
+          # găsește toate directoarele cu application.fam
           find "$ROOT" -type f -name "application.fam" -print > "$MAPFILE"
 
           if [ ! -s "$MAPFILE" ]; then
-            echo "ERROR: niciun application.fam găsit. Verifică numele fișierului și locația."
+            echo "ERROR: niciun application.fam găsit. Verifică numele/locația fișierului."
             exit 2
           fi
 
           mkdir -p build-collect
-          i=0
+          idx=0
           while IFS= read -r fam; do
             dir="$(dirname "$fam")"
-            echo "=== [$((++i))] Building in: $dir"
+            echo "=== [$((++idx))] Building in: $dir"
             ls -la "$dir" || true
 
-            # list app(s) văzute de ufbt în acest dir
+            # Forțează canalul SDK să fie ca pe device (schimbă 'release' în 'dev' dacă ai firmware dev)
+            (cd "$dir" && ufbt update --channel=release)
+
+            echo "== ufbt list =="
             (cd "$dir" && ufbt list || true)
 
-            # build
-            (cd "$dir" && ufbt update && ufbt build)
+            echo "== ufbt build =="
+            (cd "$dir" && ufbt build)
 
-            # strânge .fap-urile raportate de action (path relativ)
-            OUT="${{ steps.ufbt.outputs.fap-artifacts }}"
-            if [ -n "$OUT" ] && [ -e "$dir/$OUT" ]; then
-              cp -vr "$dir/$OUT" build-collect/ || true
-            else
-              # fallback: caută .fap în subdir-ul de build
-              find "$dir" -type f -name "*.fap" -print -exec cp -v {} build-collect/ \;
-            fi
+            # colectează .fap-urile
+            find "$dir" -type f -name "*.fap" -print -exec cp -v {} build-collect/ \;
           done < "$MAPFILE"
 
           echo "== Collected FAPs =="
@@ -67,5 +60,5 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: faps-${{ steps.ufbt.outputs.suffix }}
+          name: faps
           path: build-collect
