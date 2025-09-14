@@ -1,0 +1,40 @@
+name: 01 - Build FAP
+on:
+  workflow_dispatch:
+  push:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: List repo (debug)
+        run: |
+          echo "PWD=$(pwd)"
+          ls -la
+          echo "----"
+          cat application.fam || true
+          echo "----"
+
+      - name: Setup uFBT
+        uses: flipperdevices/flipperzero-ufbt-action@v0.1.4
+        id: ufbt
+        with:
+          sdk-channel: release   # pune 'dev' dacă Flipperul e pe firmware dev
+
+      - name: Build (root)
+        run: |
+          set -e
+          ufbt --version || true
+          ufbt update
+          ufbt list || true
+          ufbt build
+
+      - name: Upload .fap
+        uses: actions/upload-artifact@v4
+        with:
+          name: fap-${{ steps.ufbt.outputs.suffix }}
+          path: |
+            **/*.fap
