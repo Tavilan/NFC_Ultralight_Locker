@@ -10,7 +10,7 @@ jobs:
       - uses: flipperdevices/flipperzero-ufbt-action@v0.1.4
         id: ufbt
         with:
-          sdk-channel: release    # pune 'dev' dacă ai firmware dev pe Flipper
+          sdk-channel: dev    # pune 'dev' dacă ai firmware dev pe Flipper
       - run: ufbt update && ufbt build
       - uses: actions/upload-artifact@v4
         with:
