@@ -1,0 +1,8 @@
+App(
+  appid="UltralightLockOTP",
+  name="UL Lock OTP",
+  apptype=FlipperAppType.EXTERNAL,
+  entry_point="ultralight_lock_otp_app",
+  requires=["nfc"],
+  stack_size=2048,
+)
