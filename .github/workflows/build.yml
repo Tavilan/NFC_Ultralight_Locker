@@ -7,11 +7,24 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
+      # Instalează SDK uFBT (alege release/dev în funcție de firmware-ul tău)
       - uses: flipperdevices/flipperzero-ufbt-action@v0.1.4
         id: ufbt
         with:
-          sdk-channel: dev    # pune 'dev' dacă ai firmware dev pe Flipper
+          sdk-channel: release   # sau 'dev' dacă Flipper-ul tău e pe dev
+
+      # (Opțional) Diagnostic: vezi ce vede ufbt
+      - run: |
+          echo "== repo files =="
+          ls -la
+          echo "== ufbt list =="
+          ufbt list || true
+
+      # Build din rădăcină (acolo e application.fam)
       - run: ufbt update && ufbt build
+
+      # Artefactul .fap
       - uses: actions/upload-artifact@v4
         with:
           name: ${{ github.event.repository.name }}-${{ steps.ufbt.outputs.suffix }}
